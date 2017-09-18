@@ -26,6 +26,8 @@ import android.util.Log;
 
 public class RNSoundModule extends ReactContextBaseJavaModule {
   Map<Integer, MediaPlayer> playerPool = new HashMap<>();
+  Map<Integer, MediaPlayer> loadingPool = new HashMap<>();
+
   ReactApplicationContext context;
   final static Object NULL = null;
 
@@ -50,7 +52,7 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
     }
 
     final RNSoundModule module = this;
-
+    module.loadingPool.put(key, player);
     player.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
       boolean callbackWasCalled = false;
 
@@ -59,6 +61,7 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
         if (callbackWasCalled) return;
         callbackWasCalled = true;
 
+        loadingPool.remove(key);
         module.playerPool.put(key, mp);
         WritableMap props = Arguments.createMap();
         props.putDouble("duration", mp.getDuration() * .001);
@@ -77,8 +80,12 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 
       @Override
       public synchronized boolean onError(MediaPlayer mp, int what, int extra) {
+        
         if (callbackWasCalled) return true;
         callbackWasCalled = true;
+
+        loadingPool.remove(key);
+
         try {
           WritableMap props = Arguments.createMap();
           props.putInt("what", what);
@@ -95,8 +102,11 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
     try {
       player.prepareAsync();
     } catch (IllegalStateException ignored) {
+      loadingPool.remove(key);
       // When loading files from a file, we useMediaPlayer.create, which actually
       // prepares the audio for us already. So we catch and ignore this error
+    } catch(Throwable e) {
+      loadingPool.remove(key);
     }
   }
 
